@@ -168,21 +168,13 @@ internal sealed class SaberEditor : IDisposable, Core.IEditorDeactivator
     public void SuspendEditor()
     {
         if (!IsActive) return;
-        _log.Debug($"SuspendEditor: activeEntry={_previewSession.ActiveEntry?.DisplayName} grab={IsSaberInHand}");
+        _log.Debug($"SuspendEditor: activeEntry={_previewSession.ActiveEntry?.DisplayName}");
         try
         {
             TeardownSubscriptions();
 
-            if (IsSaberInHand)
-            {
-                _trailPreviewer?.Destroy();
-                _previewSession.WipePreviews();
-            }
-            else
-            {
-                _previewSession.SuspendPreviews();
-            }
-
+            _trailPreviewer?.Destroy();
+            _previewSession.WipePreviews();
             _grip.SetGripVisible(SaberHand.Left, true);
             _grip.SetGripVisible(SaberHand.Right, true);
             _menuSaberProvider.SetMenuSaberVisible(true);
