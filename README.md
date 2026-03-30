@@ -4,7 +4,7 @@ A custom saber mod for Beat Saber built from the ground up. Loads `.saber` and `
 
 If you're coming from [CustomSabersLite](https://github.com/qqrz997/CustomSabersLite), CSL is a great mod that stays close to the vanilla experience with a clean, minimal feature set. SaberSense is for people who want more control over how their sabers look and behave.
 
-<video src="https://github.com/user-attachments/assets/a045c9df-24de-43b7-82c6-355ccd5a0911" autoplay loop muted playsinline></video>
+<video src="https://github.com/user-attachments/assets/39887958-424b-4024-8746-892fe09732a7" autoplay loop muted playsinline></video>
 
 ## Saber Customization
 
@@ -12,7 +12,7 @@ If you're coming from [CustomSabersLite](https://github.com/qqrz997/CustomSabers
 
 **Material editing** - Opens the saber's shader properties in-game. The editor reads what the shader exposes, so you see the property names and ranges for that saber. Color pickers, float sliders, texture selection, and toggles depending on what the shader has. Properties can be split per-hand if you want different colors or values on left vs right. Changes preview live and can be reverted.
 
-<video src="https://github.com/user-attachments/assets/8e07666f-18b2-4559-af51-4793bf692f38" autoplay loop muted playsinline></video>
+<video src="https://github.com/user-attachments/assets/00bd4fb5-aa07-437f-9659-d6fa8accfb98" autoplay loop muted playsinline></video>
 
 **Component modifiers** - Sabers that define modifier targets let you toggle parts on or off (visibility modifiers) or adjust their position, rotation, and scale (spatial modifiers). Changes sync across both hands.
 
