@@ -176,8 +176,26 @@ internal sealed class SaberTabView(
 
     private async Task LoadSabersAsync()
     {
-        if (catalog is not null) await catalog.PreparePreviewsAsync();
+        if (catalog is not null)
+        {
+            await _loadingOverlay.ShowAsync();
+            _loadingOverlay.SetPhase("Scanning saber catalogue...", 0f);
+
+            catalog.OnScanProgress = (completed, total) =>
+            {
+                if (total > 0)
+                    _loadingOverlay.SetPhase($"Scanning saber catalogue ({completed}/{total})...",
+                        (float)completed / total);
+            };
+
+            await catalog.PreparePreviewsAsync();
+            catalog.OnScanProgress = null;
+            _loadingOverlay.Hide();
+        }
         await ShowSabers(false);
+
+        if (previewSession?.FocusedSaber == null)
+            editor?.ActivateEditor();
     }
 
     public void UpdateCellIcon(object userData, UnityEngine.Sprite icon) => _saberList?.UpdateCellIcon(userData, icon);
@@ -193,7 +211,7 @@ internal sealed class SaberTabView(
         var current = previewSession?.ActiveEntry;
 
         var loadoutEntry = editor?.LoadoutEntry;
-        if (loadoutEntry is not null && current is not null && !ReferenceEquals(loadoutEntry, current))
+        if (loadoutEntry is not null && (current is null || !ReferenceEquals(loadoutEntry, current)))
             current = loadoutEntry;
 
         if (editor?.IsLoadoutEmpty == true)

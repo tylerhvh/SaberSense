@@ -3,7 +3,7 @@
   "id": "SaberSense",
   "name": "SaberSense",
   "author": "dylan",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Get Good, Get SaberSense",
   "gameVersion": "1.40.0",
   "dependsOn": {

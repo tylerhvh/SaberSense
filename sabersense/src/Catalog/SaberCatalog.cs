@@ -43,6 +43,8 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _refreshLocks = new();
     private Task? _scanTask;
 
+    internal Action<int, int>? OnScanProgress;
+
     private SaberCatalog(
         IModLogger log,
         SaberAssetBuilder saberParser,
@@ -119,9 +121,13 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
             catch (Exception ex) { _log.Error($"Failed to open preview database: {ex}"); }
             DiscoverExternalFolders();
 
-            _scanTask = Task.WhenAll(_loaders.Select(loader => ExecuteScanAsync(loader, true)));
-            await _scanTask;
+            foreach (var loader in _loaders)
+            {
+                _scanTask = ExecuteScanAsync(loader, true);
+                await _scanTask;
+            }
             _db.Save();
+            _broker.Publish(new ScanCompleteMsg());
         });
     }
 
@@ -236,9 +242,12 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
     {
         var timer = new PerfTimer("Scanning Saber Catalog");
         var pendingPaths = new List<string>();
+        int discovered = 0;
 
         await foreach (var discovery in loader.DiscoverAsync(_dirs))
         {
+            discovered++;
+
             if (_previews.ContainsKey(discovery.RelativePath)) continue;
 
             if (_db!.HasCurrentPreview(discovery.RelativePath))
@@ -260,13 +269,20 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
                 pendingPaths.Add(discovery.RelativePath);
         }
 
-        int processed = 0;
-        foreach (var path in pendingPaths)
+        int completed = discovered - pendingPaths.Count;
+        OnScanProgress?.Invoke(completed, discovered);
+
+        const int batchSize = 8;
+        for (int i = 0; i < pendingPaths.Count; i += batchSize)
         {
-            await ExtractAndStorePreviewAsync(loader, path);
-            if (++processed % 10 is 0)
-                await Task.Yield();
+            var batch = pendingPaths.GetRange(i, Math.Min(batchSize, pendingPaths.Count - i));
+            await Task.WhenAll(batch.Select(path => ExtractAndStorePreviewAsync(loader, path)));
+            completed += batch.Count;
+            OnScanProgress?.Invoke(completed, discovered);
         }
+
+        if (pendingPaths.Count > 0)
+            _db!.Save();
 
         timer.Print(_log);
     }

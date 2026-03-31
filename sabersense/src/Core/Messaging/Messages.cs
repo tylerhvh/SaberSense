@@ -22,3 +22,5 @@ internal readonly record struct ConfigLoadedMsg();
 internal readonly record struct CoverGeneratedMsg(AssetPreview Preview);
 internal readonly record struct LogEntryMsg(LogEntry Entry);
 internal readonly record struct PreviewsWipedMsg();
+internal readonly record struct PreviewAddedMsg();
+internal readonly record struct ScanCompleteMsg();
