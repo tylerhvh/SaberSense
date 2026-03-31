@@ -105,50 +105,55 @@ internal sealed class WhackerBundleLoader : ISaberLoader
         return loadedBundle;
     }
 
-    public Task<PreviewData?> ExtractPreviewAsync(string relativePath)
+    public async Task<PreviewData?> ExtractPreviewAsync(string relativePath)
     {
         var fullPath = AssetPaths.ResolveFull(relativePath);
         if (!File.Exists(fullPath))
-            return Task.FromResult<PreviewData?>(null);
+            return null;
 
         try
         {
-            using var fileStream = File.OpenRead(fullPath);
-            using var archive = new System.IO.Compression.ZipArchive(fileStream, System.IO.Compression.ZipArchiveMode.Read);
-
-            var manifest = ParseManifest(archive);
-            if (manifest is null) return Task.FromResult<PreviewData?>(null);
-
-            Sprite? coverSprite = null;
-            if (!string.IsNullOrEmpty(manifest.IconName))
+            var (manifest, iconBytes, contentHash, fileSize, lastModified) = await Task.Run(() =>
             {
-                var iconEntry = archive.GetEntry(manifest.IconName);
-                if (iconEntry is not null)
+                using var fileStream = File.OpenRead(fullPath);
+                using var archive = new System.IO.Compression.ZipArchive(fileStream, System.IO.Compression.ZipArchiveMode.Read);
+
+                var m = ParseManifest(archive);
+                if (m is null) return (default(WhackerManifest), default(byte[]), default(string), 0L, "");
+
+                byte[]? icon = null;
+                if (!string.IsNullOrEmpty(m.IconName))
                 {
-                    using var iconStream = iconEntry.Open();
-                    using var ms = new MemoryStream();
-                    iconStream.CopyTo(ms);
-                    coverSprite = SpriteFactory.FromEncodedBytes(ms.ToArray());
+                    var iconEntry = archive.GetEntry(m.IconName);
+                    if (iconEntry is not null)
+                    {
+                        using var iconStream = iconEntry.Open();
+                        using var ms = new MemoryStream();
+                        iconStream.CopyTo(ms);
+                        icon = ms.ToArray();
+                    }
                 }
-            }
 
-            var fileInfo = new FileInfo(fullPath);
+                var hash = ContentHasher.TryCompute(fullPath);
+                var info = new FileInfo(fullPath);
+                return (m, icon, hash, info.Length, info.LastWriteTimeUtc.ToString("O"));
+            });
 
-            var contentHash = ContentHasher.TryCompute(fullPath);
+            if (manifest is null) return null;
 
-            var preview = new PreviewData(
+            var coverSprite = iconBytes is not null ? SpriteFactory.FromEncodedBytes(iconBytes) : null;
+
+            return new PreviewData(
                 manifest.Name, manifest.Author, coverSprite, true,
                 Profiles.AssetTypeTag.SaberAsset,
-                fileInfo.Length,
-                fileInfo.LastWriteTimeUtc.ToString("O"),
+                fileSize,
+                lastModified,
                 contentHash);
-
-            return Task.FromResult<PreviewData?>(preview);
         }
         catch (Exception ex)
         {
             _log?.Warn($"Preview extraction failed for {relativePath}: {ex.Message}");
-            return Task.FromResult<PreviewData?>(null);
+            return null;
         }
     }
 

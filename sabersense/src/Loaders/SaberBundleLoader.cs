@@ -62,6 +62,8 @@ internal sealed class SaberBundleLoader(SaberBundleParser parser, IModLogger log
 
     public static event Action<string, float>? OnLoadProgress;
 
+    public static event Action? OnLoadComplete;
+
     public string HandledExtension => ".saber";
 
     public async IAsyncEnumerable<SaberRoute> DiscoverAsync(AppPaths dirs)
@@ -136,6 +138,7 @@ internal sealed class SaberBundleLoader(SaberBundleParser parser, IModLogger log
             ParseResult = parseResult?.HasEvents == true ? parseResult : null
         };
 
+        OnLoadComplete?.Invoke();
         return bundle;
     }
 
@@ -173,40 +176,43 @@ internal sealed class SaberBundleLoader(SaberBundleParser parser, IModLogger log
         return null;
     }
 
-    public Task<PreviewData?> ExtractPreviewAsync(string relativePath)
+    public async Task<PreviewData?> ExtractPreviewAsync(string relativePath)
     {
         var fullPath = AssetPaths.ResolveFull(relativePath);
         if (!File.Exists(fullPath))
-            return Task.FromResult<PreviewData?>(null);
+            return null;
 
         try
         {
-            var parseResult = parser.Parse(fullPath);
-            if (parseResult is null)
-                return Task.FromResult<PreviewData?>(null);
+            var (previewResult, contentHash, fileSize, lastModified) = await Task.Run(() =>
+            {
+                var result = parser.ParsePreviewOnly(fullPath);
+                var hash = result is not null ? ContentHasher.TryCompute(fullPath) : null;
+                var info = new FileInfo(fullPath);
+                return (result, hash, info.Length, info.LastWriteTimeUtc.ToString("O"));
+            });
 
-            var coverSprite = parseResult.CoverImage is not null ? SpriteFactory.FromRawGPU(parseResult.CoverImage) : null;
+            if (previewResult is null)
+                return null;
 
-            var fileInfo = new FileInfo(fullPath);
+            var (metadata, coverData) = previewResult.Value;
 
-            var contentHash = ContentHasher.TryCompute(fullPath);
+            var coverSprite = coverData is not null ? SpriteFactory.FromRawGPU(coverData) : null;
 
-            var preview = new PreviewData(
-                parseResult.Metadata.Name ?? "Custom Saber",
-                parseResult.Metadata.Author ?? "Unknown",
+            return new PreviewData(
+                metadata.Name ?? "Custom Saber",
+                metadata.Author ?? "Unknown",
                 coverSprite,
                 true,
                 AssetTypeTag.SaberAsset,
-                fileInfo.Length,
-                fileInfo.LastWriteTimeUtc.ToString("O"),
+                fileSize,
+                lastModified,
                 contentHash);
-
-            return Task.FromResult<PreviewData?>(preview);
         }
         catch (Exception ex)
         {
             _log?.Warn($"Preview extraction failed for {relativePath}: {ex.Message}");
-            return Task.FromResult<PreviewData?>(null);
+            return null;
         }
     }
 }

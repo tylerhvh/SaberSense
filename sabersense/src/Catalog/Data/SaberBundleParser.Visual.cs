@@ -23,7 +23,7 @@ public sealed partial class SaberBundleParser
         return (new(saberName, authorName, description, null), coverPathId);
     }
 
-    private CoverImageData? TryExtractCoverImage(AssetsFileReader assetsReader, long spritePathId, Dictionary<string, byte[]> bundleContent)
+    private CoverImageData? TryExtractCoverImage(AssetsFileReader assetsReader, long spritePathId, Dictionary<string, byte[]> bundleContent, bool silent = false)
     {
         try
         {
@@ -86,7 +86,7 @@ public sealed partial class SaberBundleParser
                                         Buffer.BlockCopy(resSData, (int)streamOffset, imageData, 0, streamSize);
                                     }
                                 }
-                                else
+                                else if (!silent)
                                 {
                                     _log.Warn($"Missing resource file: {streamFilename}");
                                 }

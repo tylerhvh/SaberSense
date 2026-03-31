@@ -50,6 +50,7 @@ internal sealed class UILogConsole : UIElement
         "ERR"
     };
 
+    private const int MaxStringBuilderChars = 65_000;
     private ScrollRect _scrollRect;
     private TextMeshProUGUI _tmp;
     private readonly StringBuilder _sb = new(4096);
@@ -244,6 +245,23 @@ internal sealed class UILogConsole : UIElement
     {
         _dirtyFrame = frame;
         _pendingFlush = false;
+
+        if (_sb.Length > MaxStringBuilderChars)
+        {
+            int trimTo = _sb.Length - MaxStringBuilderChars;
+
+            for (int i = trimTo; i < _sb.Length - 4; i++)
+            {
+                if (_sb[i] == '-' && _sb[i + 1] == '-' && _sb[i + 2] == '-' && _sb[i + 3] == '-')
+                {
+                    while (i > 0 && _sb[i - 1] != '\n') i--;
+                    trimTo = i;
+                    break;
+                }
+            }
+            _sb.Remove(0, trimTo);
+        }
+
         _tmp.SetText(_sb);
         ScheduleAutoScroll();
     }

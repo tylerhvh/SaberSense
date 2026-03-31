@@ -8,6 +8,9 @@ namespace SaberSense.Core.BundleFormat;
 
 internal static class LzmaDecoder
 {
+    public static byte[] DecodePartial(byte[] compressed, int uncompressedSize, int maxOutputBytes)
+        => Decode(compressed, Math.Min(uncompressedSize, maxOutputBytes));
+
     public static byte[] Decode(byte[] compressed, int uncompressedSize)
     {
         if (compressed.Length is < 5)

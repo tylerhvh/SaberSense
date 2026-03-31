@@ -18,6 +18,96 @@ public sealed partial class SaberBundleParser
         _log = log.ForSource(nameof(SaberBundleParser));
     }
 
+    public (SaberMetadata Metadata, CoverImageData? CoverImage)? ParsePreviewOnly(string filePath)
+    {
+        try
+        {
+            static bool IsAssetsFile(string name) =>
+                !name.EndsWith(".resS", StringComparison.OrdinalIgnoreCase) &&
+                !name.EndsWith(".resource", StringComparison.OrdinalIgnoreCase);
+
+            var bundleContent = BundleReader.ExtractBundleContent(filePath, IsAssetsFile);
+            if (bundleContent.Count is 0) return null;
+
+            byte[]? assetsData = null;
+            foreach (var pair in bundleContent)
+            {
+                assetsData = pair.Value;
+                break;
+            }
+            if (assetsData is null) return null;
+
+            var assetsReader = new AssetsFileReader();
+            assetsReader.Load(assetsData);
+
+            var scriptMap = new Dictionary<long, string>();
+            foreach (var info in assetsReader.Objects)
+            {
+                var type = assetsReader.GetType(info);
+                if (type is null) continue;
+                if (type.TypeId is 115)
+                    ReadNamedObject(assetsReader, info, scriptMap, "m_ClassName");
+            }
+
+            SaberMetadata? metadata = null;
+            long coverSpritePathId = 0;
+
+            foreach (var info in assetsReader.Objects)
+            {
+                var type = assetsReader.GetType(info);
+                if (type is null) continue;
+
+                int typeId = type.TypeId;
+                if (typeId is not 114 and >= 0) continue;
+
+                var obj = assetsReader.ReadObject(info);
+                if (obj is null) continue;
+
+                var scriptRef = obj.GetChild("m_Script");
+                if (scriptRef is null) continue;
+
+                var scriptPathId = scriptRef.GetLong("m_PathID");
+                if (!scriptMap.TryGetValue(scriptPathId, out var className)) continue;
+
+                if (className is "SaberDescriptor")
+                {
+                    var (desc, coverPId) = ReadSaberDescriptor(obj);
+                    metadata = desc;
+                    coverSpritePathId = coverPId;
+                    break;
+                }
+            }
+
+            CoverImageData? coverData = null;
+            if (coverSpritePathId is not 0)
+            {
+                coverData = TryExtractCoverImage(assetsReader, coverSpritePathId, bundleContent, silent: true);
+
+                if (coverData is null)
+                {
+                    var resSContent = BundleReader.ExtractBundleContent(filePath,
+                        name => name.EndsWith(".resS", StringComparison.OrdinalIgnoreCase) ||
+                                name.EndsWith(".resource", StringComparison.OrdinalIgnoreCase));
+
+                    if (resSContent.Count > 0)
+                    {
+                        foreach (var kv in resSContent)
+                            bundleContent[kv.Key] = kv.Value;
+
+                        coverData = TryExtractCoverImage(assetsReader, coverSpritePathId, bundleContent);
+                    }
+                }
+            }
+
+            return (metadata ?? SaberMetadata.Unknown, coverData);
+        }
+        catch (Exception ex)
+        {
+            _log?.Warn($"Failed to parse preview for '{filePath}': {ex.Message}");
+            return null;
+        }
+    }
+
     public SaberParseResult? Parse(string filePath)
     {
         try

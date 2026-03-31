@@ -97,6 +97,7 @@ internal sealed class SaberTabView(
         _equippedSub = broker?.Subscribe<SaberEquippedMsg>(msg => OnEquipped(msg.Entry))!;
         _spawnedSub = broker?.Subscribe<SaberPreviewInstantiatedMsg>(_ => _spawnComplete?.TrySetResult(true))!;
         SaberSense.Loaders.SaberBundleLoader.OnLoadProgress += OnLoadProgress;
+        SaberSense.Loaders.SaberBundleLoader.OnLoadComplete += OnLoadComplete;
         SaberSense.Core.Utilities.BundleLoader.OnAssetProgress += OnAssetProgress;
         _configLoadingSub = broker?.Subscribe<ConfigLoadingMsg>(_ =>
         {
@@ -172,7 +173,10 @@ internal sealed class SaberTabView(
         _loadingOverlay?.Hide();
     }
 
-    private void LoadSabers() => ErrorBoundary.FireAndForget(LoadSabersAsync(), _log, nameof(LoadSabersAsync));
+    private void LoadSabers()
+    {
+        ErrorBoundary.FireAndForget(LoadSabersAsync(), _log, nameof(LoadSabers));
+    }
 
     private async Task LoadSabersAsync()
     {
@@ -194,8 +198,7 @@ internal sealed class SaberTabView(
         }
         await ShowSabers(false);
 
-        if (previewSession?.FocusedSaber == null)
-            editor?.ActivateEditor();
+        editor?.ActivateEditor();
     }
 
     public void UpdateCellIcon(object userData, UnityEngine.Sprite icon) => _saberList?.UpdateCellIcon(userData, icon);
@@ -521,12 +524,19 @@ internal sealed class SaberTabView(
         }
         _loadingOverlay?.SetPhase(phase, progress);
     }
+
+    private void OnLoadComplete()
+    {
+        if (_externalLoadOverlayActive)
+            HideExternalLoadOverlay();
+    }
     private void OnAssetProgress(int loaded, int total) =>
         _loadingOverlay?.SetPhase($"Loading assets [{loaded}/{total}]", 0.15f + (0.25f * loaded / total));
 
     public void Dispose()
     {
         SaberSense.Loaders.SaberBundleLoader.OnLoadProgress -= OnLoadProgress;
+        SaberSense.Loaders.SaberBundleLoader.OnLoadComplete -= OnLoadComplete;
         SaberSense.Core.Utilities.BundleLoader.OnAssetProgress -= OnAssetProgress;
         _bindingScope.Dispose();
         _equippedSub?.Dispose();

@@ -14,6 +14,14 @@ internal static class Lz4Decoder
         return output;
     }
 
+    public static byte[] DecodePartial(byte[] compressed, int uncompressedSize, int maxOutputBytes)
+    {
+        int outputSize = Math.Min(uncompressedSize, maxOutputBytes);
+        var output = new byte[outputSize];
+        Decode(compressed, 0, compressed.Length, output, 0, outputSize);
+        return output;
+    }
+
     public static void Decode(
         byte[] source, int srcOffset, int srcLength,
         byte[] dest, int destOffset, int destLength)

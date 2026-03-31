@@ -16,6 +16,9 @@ internal static class BundleReader
     private const int CompressionLz4Hc = 3;
 
     public static Dictionary<string, byte[]> ExtractBundleContent(string bundlePath)
+        => ExtractBundleContent(bundlePath, fileFilter: null);
+
+    public static Dictionary<string, byte[]> ExtractBundleContent(string bundlePath, Func<string, bool>? fileFilter)
     {
         using var stream = File.OpenRead(bundlePath);
         using var reader = new EndianReader(stream, bigEndian: true);
@@ -105,32 +108,111 @@ internal static class BundleReader
 
         ModLogger.ForSource("Bundle").Debug($"blocks={blockCount} dirs={directoryCount} dataStart={dataBlocksStart}");
 
-        reader.Position = dataBlocksStart;
-        using var decompressedStream = new MemoryStream();
-
-        for (int i = 0; i < blockCount; i++)
-        {
-            int blockCompression = blocks[i].Flags & 0x3F;
-            var compressedData = reader.ReadBytes(blocks[i].CompressedSize);
-
-            var decompressed = DecompressData(compressedData, blockCompression,
-                                              blocks[i].UncompressedSize, $"block {i}");
-            decompressedStream.Write(decompressed, 0, decompressed.Length);
-        }
-
-        var allData = decompressedStream.ToArray();
-        var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-
+        var wantedEntries = new List<DirectoryEntry>();
         foreach (var entry in directories)
         {
-            if (entry.Offset + entry.Size > allData.Length)
+            if (fileFilter is null || fileFilter(entry.Name))
+                wantedEntries.Add(entry);
+        }
+
+        var neededBlocks = new bool[blockCount];
+        var blockBytesNeeded = new int[blockCount];
+        bool extractAll = fileFilter is null;
+
+        if (extractAll)
+        {
+            for (int i = 0; i < blockCount; i++)
+            {
+                neededBlocks[i] = true;
+                blockBytesNeeded[i] = blocks[i].UncompressedSize;
+            }
+        }
+        else
+        {
+            long blockStart = 0;
+            for (int i = 0; i < blockCount; i++)
+            {
+                long blockEnd = blockStart + blocks[i].UncompressedSize;
+                foreach (var entry in wantedEntries)
+                {
+                    long fileStart = entry.Offset;
+                    long fileEnd = entry.Offset + entry.Size;
+                    if (fileStart < blockEnd && fileEnd > blockStart)
+                    {
+                        neededBlocks[i] = true;
+                        int needed = (int)(Math.Min(fileEnd, blockEnd) - blockStart);
+                        if (needed > blockBytesNeeded[i])
+                            blockBytesNeeded[i] = needed;
+                    }
+                }
+                blockStart = blockEnd;
+            }
+        }
+
+        reader.Position = dataBlocksStart;
+        var decompressedBlocks = new byte[blockCount][];
+        var blockOffsets = new long[blockCount];
+
+        long cumOffset = 0;
+        for (int i = 0; i < blockCount; i++)
+        {
+            blockOffsets[i] = cumOffset;
+
+            if (neededBlocks[i])
+            {
+                var compressedData = reader.ReadBytes(blocks[i].CompressedSize);
+                int blockCompression = blocks[i].Flags & 0x3F;
+                int fullSize = blocks[i].UncompressedSize;
+                int needed = blockBytesNeeded[i];
+
+                if (needed < fullSize)
+                    decompressedBlocks[i] = DecompressPartial(compressedData, blockCompression,
+                                                              fullSize, needed, $"block {i}");
+                else
+                    decompressedBlocks[i] = DecompressData(compressedData, blockCompression,
+                                                           fullSize, $"block {i}");
+            }
+            else
+            {
+                reader.Position += blocks[i].CompressedSize;
+                decompressedBlocks[i] = [];
+            }
+
+            cumOffset += blocks[i].UncompressedSize;
+        }
+
+        var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in wantedEntries)
+        {
+            if (entry.Offset + entry.Size > cumOffset)
             {
                 ModLogger.ForSource("Bundle").Warn($"Directory entry '{entry.Name}' exceeds data bounds!");
                 continue;
             }
 
             var fileData = new byte[entry.Size];
-            Buffer.BlockCopy(allData, (int)entry.Offset, fileData, 0, (int)entry.Size);
+            long filePos = entry.Offset;
+            int destPos = 0;
+            int remaining = (int)entry.Size;
+
+            for (int i = 0; i < blockCount && remaining > 0; i++)
+            {
+                long blockEnd = blockOffsets[i] + blocks[i].UncompressedSize;
+                if (filePos >= blockEnd) continue;
+
+                int srcOffset = (int)(filePos - blockOffsets[i]);
+                int available = decompressedBlocks[i].Length - srcOffset;
+                int copyLen = Math.Min(remaining, available);
+
+                if (copyLen > 0)
+                    Buffer.BlockCopy(decompressedBlocks[i], srcOffset, fileData, destPos, copyLen);
+
+                destPos += copyLen;
+                filePos += copyLen;
+                remaining -= copyLen;
+            }
+
             result[entry.Name] = fileData;
         }
 
@@ -145,6 +227,19 @@ internal static class BundleReader
             CompressionNone => compressed,
             CompressionLzma => LzmaDecoder.Decode(compressed, uncompressedSize),
             CompressionLz4 or CompressionLz4Hc => Lz4Decoder.Decode(compressed, uncompressedSize),
+            _ => throw new NotSupportedException(
+                $"Unsupported compression type {compressionType} in {context}")
+        };
+    }
+
+    private static byte[] DecompressPartial(byte[] compressed, int compressionType,
+                                             int uncompressedSize, int maxOutputBytes, string context)
+    {
+        return compressionType switch
+        {
+            CompressionNone => compressed[..Math.Min(compressed.Length, maxOutputBytes)],
+            CompressionLzma => LzmaDecoder.DecodePartial(compressed, uncompressedSize, maxOutputBytes),
+            CompressionLz4 or CompressionLz4Hc => Lz4Decoder.DecodePartial(compressed, uncompressedSize, maxOutputBytes),
             _ => throw new NotSupportedException(
                 $"Unsupported compression type {compressionType} in {context}")
         };

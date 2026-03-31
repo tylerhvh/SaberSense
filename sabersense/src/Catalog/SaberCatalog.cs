@@ -41,6 +41,7 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
     private readonly ConcurrentDictionary<string, SaberAssetEntry> _loadedEntries = new();
     private readonly AsyncOnce _scanGuard = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _refreshLocks = new();
+    private readonly SemaphoreSlim _scanPause = new(1, 1);
     private Task? _scanTask;
 
     internal Action<int, int>? OnScanProgress;
@@ -66,6 +67,7 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
     {
         PurgeAll();
         _db?.Dispose();
+        _scanPause.Dispose();
 
         foreach (var sem in _refreshLocks.Values) sem.Dispose();
         _refreshLocks.Clear();
@@ -291,6 +293,9 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
     {
         if (_previews.ContainsKey(relativePath)) return;
 
+        await _scanPause.WaitAsync();
+        _scanPause.Release();
+
         try
         {
             var data = await loader.ExtractPreviewAsync(relativePath);
@@ -337,6 +342,19 @@ public sealed class SaberCatalog : IDisposable, IAsyncLoadable
     }
 
     private async Task<SaberAssetEntry?> InflateEntryAsync(string relativePath)
+    {
+        await _scanPause.WaitAsync();
+        try
+        {
+            return await InflateEntryCore(relativePath);
+        }
+        finally
+        {
+            _scanPause.Release();
+        }
+    }
+
+    private async Task<SaberAssetEntry?> InflateEntryCore(string relativePath)
     {
         var ext = Path.GetExtension(relativePath);
         var loader = _loaders.FirstOrDefault(l => string.Equals(l.HandledExtension, ext, StringComparison.OrdinalIgnoreCase));
