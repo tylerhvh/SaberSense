@@ -221,9 +221,6 @@ internal sealed class ConfigManagementSection(
 
         SyncDefaultSaberRegistration();
         SyncInputBindings();
-        if (_pluginConfig is not null)
-            SaberSense.Core.Patches.HarmonyBridge.SwingExtrapolation = _pluginConfig.SwingExtrapolation;
-
         _configNameInput?.SetText("");
         RefreshConfigList();
         _broker?.Publish(new SettingsChangedMsg());

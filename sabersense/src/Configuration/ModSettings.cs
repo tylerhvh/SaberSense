@@ -102,9 +102,6 @@ internal sealed class ModSettings : BindableSettings
     private EditorConfig _editor = new();
     public EditorConfig Editor { get => _editor; set => SetField(ref _editor, value); }
 
-    private SwingExtrapolationConfig _swingExtrapolation = new();
-    public SwingExtrapolationConfig SwingExtrapolation { get => _swingExtrapolation; set => SetField(ref _swingExtrapolation, value); }
-
     public (int Length, float Width)? GetTrailDimensions(string saberName)
     {
         try
@@ -164,6 +161,5 @@ internal sealed class ModSettings : BindableSettings
         WorldMod = new();
         Visibility = new();
         Editor = new();
-        SwingExtrapolation = new();
     }
 }

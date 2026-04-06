@@ -136,7 +136,6 @@ internal sealed class SettingsTabView : IDisposable
         BuildHidePlatformRow(parent);
         BuildKeepSabersOnFocusLossRow(parent);
         BuildFloorCalibrationRows(parent);
-        BuildSwingExtrapolationRows(parent);
     }
 
     private void BuildDefaultSaberToggle(RectTransform parent)
@@ -217,27 +216,6 @@ internal sealed class SettingsTabView : IDisposable
             .AddLayoutElement(preferredHeight: UITheme.ActionRowHeight, flexibleWidth: 1);
         calibrateBtn.OnClick = OnCalibrateFloor;
         toggle.ControlsVisibility(calibrateBtn.GameObject);
-    }
-
-    private void BuildSwingExtrapolationRows(RectTransform parent)
-    {
-        var swingToggle = new UIToggle().Bind(_pluginConfig, c => c.SwingExtrapolation.Enabled, scope: _bindingScope);
-        UILayoutFactory.CheckboxRow("Swing extrapolation", swingToggle, parent, experimental: true);
-
-        var swingSlider = new UISlider().SetRange(0, 100).Bind(_pluginConfig, c => c.SwingExtrapolation.Strength, scope: _bindingScope);
-        var goSwingSlider = UILayoutFactory.SliderRow("Strength", swingSlider, parent);
-        swingToggle.ControlsVisibility(goSwingSlider);
-
-        var gameOnlyToggle = new UIToggle().Bind(_pluginConfig, c => c.SwingExtrapolation.GameOnly, scope: _bindingScope);
-        var gameOnlyRow = new HBox("GameOnlyCR").SetParent(parent);
-        gameOnlyRow.SetSpacing(UITheme.ColumnGap).SetPadding(0, 0, 0, 0).AddLayoutElement(preferredHeight: UITheme.LabelHeight, flexibleWidth: 1);
-        gameOnlyRow.LayoutGroup.childAlignment = TextAnchor.MiddleLeft;
-        gameOnlyRow.LayoutGroup.childForceExpandHeight = false;
-        gameOnlyToggle.SetParent(gameOnlyRow.RectTransform);
-        new UILabel("GameOnlyL", "Extrapolate in-game only").SetFontSize(UITheme.FontSmall).SetColor(UITheme.TextSecondary)
-            .SetAlignment(TMPro.TextAlignmentOptions.Left).SetParent(gameOnlyRow.RectTransform).AddLayoutElement(flexibleWidth: 1, preferredHeight: UITheme.LabelHeight);
-        UILayoutFactory.AddRowHitArea(gameOnlyRow.RectTransform, gameOnlyToggle);
-        swingToggle.ControlsVisibility(gameOnlyRow.GameObject);
     }
 
     private void BuildRenderingSection(RectTransform parentCol)

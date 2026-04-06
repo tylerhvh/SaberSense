@@ -42,7 +42,6 @@ internal static class ModSettingsCopier
         CopyWorldMod(source.WorldMod, target.WorldMod);
         CopyVisibility(source.Visibility, target.Visibility);
         CopyEditor(source.Editor, target.Editor);
-        CopySwingExtrapolation(source.SwingExtrapolation, target.SwingExtrapolation);
     }
 
     private static void CopyTrail(TrailRenderingOptions s, TrailRenderingOptions t)
@@ -88,10 +87,4 @@ internal static class ModSettingsCopier
         t.SortMode = s.SortMode;
     }
 
-    private static void CopySwingExtrapolation(SwingExtrapolationConfig s, SwingExtrapolationConfig t)
-    {
-        t.Enabled = s.Enabled;
-        t.Strength = s.Strength;
-        t.GameOnly = s.GameOnly;
-    }
 }

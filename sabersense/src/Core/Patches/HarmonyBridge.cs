@@ -11,7 +11,5 @@ internal static class HarmonyBridge
 
     internal static GUI.SaberSenseMenuButton? MenuButton { get; set; }
 
-    internal static SwingExtrapolationConfig? SwingExtrapolation { get; set; }
-
     internal static ModSettings? Settings { get; set; }
 }

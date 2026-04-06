@@ -18,7 +18,6 @@ internal static class ModSettingsSideEffects
         _previous = settings;
         settings.PropertyChanged += OnPropertyChanged;
 
-        Patches.HarmonyBridge.SwingExtrapolation = settings.SwingExtrapolation;
         Patches.HarmonyBridge.Settings = settings;
 
         PauseKeyInputBehavior.Initialize();
@@ -32,9 +31,6 @@ internal static class ModSettingsSideEffects
         {
             case nameof(ModSettings.AccentColor):
                 GUI.Framework.Core.UITheme.SetAccent(s.AccentColor);
-                break;
-            case nameof(ModSettings.SwingExtrapolation):
-                Patches.HarmonyBridge.SwingExtrapolation = s.SwingExtrapolation;
                 break;
             case nameof(ModSettings.PauseKeyButton):
                 PauseKeyInputBehavior.Binding = s.PauseKeyButton;
